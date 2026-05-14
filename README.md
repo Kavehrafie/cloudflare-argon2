@@ -1,69 +1,89 @@
-# Tutorial Cloudflare Lucia Argon2
-
-Example of using Lucia Auth in Cloudflare with an Argon2 Rust Worker.
-
-The Argon2 worker is from:
-- https://github.com/glotlabs/argon2-cloudflare
+# argon2-cloudflare
+Cloudflare worker for hashing and verifying passwords with argon2.
+Can be used via a service binding.
 
 
-## How to run
+## Dev
 
-Before running, make sure you have Rust and Cloudflare setup.
+#### Install deps
+npm install
 
-### Running the argon2 worker
-
-```
-cd tutorial-sveltekit/
-npm i
-```
-
-In local dev
-
-```
+#### Dev server
 npm run dev
+
+#### Deploy to cloudflare
+npm deploy
+
+
+## Api
+
+
+### Hash
+
+##### Endpoint
+`POST /hash`
+
+##### Request
+```json
+{
+    "password": "foo"
+}
+```
+or with options:
+```json
+{
+    "password": "some-password",
+    "options": {
+        "timeCost": 2,
+        "memoryCost": 19456,
+        "parallelism": 1
+    }
+}
 ```
 
-Test the worker locally
-```
-curl -X POST http://127.0.0.1:8787/hash -H "Content-Type: application/json" -d '{"password": "helloworld"}'
-```
-
-Deploy the worker
-
-```
-npm run deploy
+##### Response
+```json
+{
+    "hash": "$argon2id$v=19$m=19456,t=2,p=1$2FtyxY2Dz8nfis44QbdqUA$+HDTT2BgERMyXEEX/o2LbKdROHzQeL4VWbyM7U0p8Ag"
+}
 ```
 
 
-### Running the svelte site
+### Verify
 
-```
-cd tutorial-sveltekit/
-npm i
-```
+##### Endpoint
+`POST /verify`
 
-Create the database. Update `wrangler.toml` with `database_id`
+##### Request
 
-```
-npx wrangler d1 create tutorial-d1-argon2
-```
-
-Apply migrations to local and production
-
-```
-npx wrangler d1 migrations apply tutorial-d1-argon2
-npx wrangler d1 migrations apply tutorial-d1-argon2 --remote
+```json
+{
+    "password": "foo",
+    "hash": "$argon2id$v=19$m=19456,t=2,p=1$2FtyxY2Dz8nfis44QbdqUA$+HDTT2BgERMyXEEX/o2LbKdROHzQeL4VWbyM7U0p8Ag"
+}
 ```
 
-In local dev. Ensure the worker dev server is already running for service bindings to work.
-
-```
-npm run dev
+##### Response
+```json
+{
+    "matches": true,
+}
 ```
 
 
-Deploy the page. Ensure the worker is already deployed
+## Service binding from pages function
+```typescript
+interface Env {
+  ARGON2: Fetcher;
+}
 
-```
-npm run deploy
+export const onRequestPost: PagesFunction<Env> = async (context) => {
+  const resp = await context.env.ARGON2.fetch("http://internal/hash", {
+    method: "POST",
+    body: JSON.stringify({ password: "foo" }),
+  });
+
+  const { hash } = await resp.json();
+  console.log(hash);
+}
 ```
